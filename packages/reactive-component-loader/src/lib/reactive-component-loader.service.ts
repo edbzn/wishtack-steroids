@@ -13,7 +13,8 @@ import {
     Injector,
     NgModuleFactory,
     NgModuleFactoryLoader,
-    Type
+    Type,
+    NgModuleRef
 } from '@angular/core';
 import { defer, Observable, of } from 'rxjs';
 import { REACTIVE_COMPONENT_LOADER_MODULE_REGISTRY } from './_internals';
@@ -96,21 +97,36 @@ export class ReactiveComponentLoader {
      * Try to find component factory with the right selector.
      * @throws error if component not found.
      */
-    private _tryGetComponentType(moduleRef, selector: string) {
-
+    private _tryGetComponentType(moduleRef: any, selector: string) {
         const componentFactoryResolver = moduleRef.componentFactoryResolver;
 
-        const componentFactory = Array.from(
-            componentFactoryResolver['_factories'].values() as Array<ComponentFactory<any>>
-        )
-            .find(_componentFactory => _componentFactory.selector === selector);
+        // Old fashion using View Engine
+        if (componentFactoryResolver._factories) {
+            const componentFactory = Array.from(
+                componentFactoryResolver._factories.values() as Array<
+                    ComponentFactory<any>
+                >
+            ).find(_componentFactory => _componentFactory.selector === selector);
 
-        if (componentFactory == null) {
+            if (componentFactory == null) {
+                throw componentNotFoundError(selector);
+            }
+
+            return componentFactory.componentType;
+        }
+        
+        // New fashion using IVy
+        const [ bootstrapComponent ] = moduleRef._bootstrapComponents;
+        
+        if (bootstrapComponent == null) {
             throw componentNotFoundError(selector);
         }
 
-        return componentFactory.componentType;
+        const component = componentFactoryResolver.resolveComponentFactory(
+            bootstrapComponent
+        );
 
+        return component.componentType;
     }
 
     /**
